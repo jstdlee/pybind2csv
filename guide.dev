@@ -1,0 +1,10 @@
+1. refer to ref.py to write a dns bind zone and view file parser
+2. input is a dns bind zone file and a dns bind view file
+3. output is a csv file with columns: zone, view, name, type, ttl, data per view.zone
+4. use typer as cli framework
+5. write tests coverage more than 70%
+6. use loguru for logging
+8. use tqdm for progress bar
+9. use pytest for testing
+10. use example view file and zone file in tests folder
+11. update readme.md eventually
