@@ -8,8 +8,7 @@ __pycache__/
 .venv/
 pybind2csv.egg-info/
 ref.py
-
-
+*.csv
 # Distribution / packaging
 .Python
 build/
