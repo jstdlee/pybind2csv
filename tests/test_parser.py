@@ -6,7 +6,11 @@ import pytest
 import tempfile
 import csv
 from pathlib import Path
+from unittest.mock import patch, MagicMock
+from typer.testing import CliRunner
+
 from pybind2csv.parser import DNSZoneParser, validate_zone_file, extract_zone_name_from_file, extract_view_name_from_file
+from pybind2csv.main import app
 
 
 class TestDNSZoneParser:
@@ -312,6 +316,168 @@ class TestIntegration:
             key = (record['zone'], record['view'], record['name'], record['type'], record['data'])
             assert key not in seen, f"Duplicate record found: {record}"
             seen.add(key)
+
+
+class TestCLI:
+    """Test CLI functionality."""
+    
+    def setup_method(self):
+        self.runner = CliRunner()
+    
+    def test_parse_single_success(self):
+        """Test successful single file parsing via CLI."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            test_file = Path(tmpdir) / "test.zone"
+            test_content = """
+$ORIGIN test.com.
+@ IN SOA ns1.test.com. admin.test.com. 2024010101 3600 1800 604800 86400
+@ IN NS ns1.test.com.
+www IN A 192.0.2.1
+"""
+            test_file.write_text(test_content)
+            
+            result = self.runner.invoke(app, [
+                "parse-single", str(test_file),
+                "--zone-name", "test.com",
+                "--view-name", "internal"
+            ])
+            
+            assert result.exit_code == 0
+            assert "Successfully parsed" in result.stdout
+            assert "Output saved to" in result.stdout
+    
+    def test_parse_single_with_output(self):
+        """Test single file parsing with custom output path."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            test_file = Path(tmpdir) / "test.zone"
+            output_file = Path(tmpdir) / "custom_output.csv"
+            
+            test_content = """
+$ORIGIN test.com.
+@ IN A 192.0.2.1
+"""
+            test_file.write_text(test_content)
+            
+            result = self.runner.invoke(app, [
+                "parse-single", str(test_file),
+                "--zone-name", "test.com",
+                "--output", str(output_file)
+            ])
+            
+            assert result.exit_code == 0
+            assert output_file.exists()
+    
+    def test_parse_single_invalid_file(self):
+        """Test CLI error handling for invalid file."""
+        result = self.runner.invoke(app, [
+            "parse-single", "/nonexistent/file.zone"
+        ])
+        
+        assert result.exit_code == 1
+        assert "File validation failed" in result.stdout
+    
+    def test_parse_zone_success(self):
+        """Test successful zone and view file parsing via CLI."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            zone_file = Path(tmpdir) / "test.zone"
+            view_file = Path(tmpdir) / "test.vroaming"
+            
+            zone_content = """
+$ORIGIN example.com.
+@ IN SOA ns1.example.com. admin.example.com. 2024010101 3600 1800 604800 86400
+@ IN NS ns1.example.com.
+"""
+            view_content = """
+$ORIGIN example.com.
+mail IN A 192.0.2.2
+"""
+            
+            zone_file.write_text(zone_content)
+            view_file.write_text(view_content)
+            
+            result = self.runner.invoke(app, [
+                "parse-zone", str(zone_file), str(view_file),
+                "--zone-name", "example.com",
+                "--view-name", "roaming"
+            ])
+            
+            assert result.exit_code == 0
+            assert "Successfully parsed" in result.stdout
+    
+    def test_parse_zone_auto_detection(self):
+        """Test zone and view name auto-detection."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            zone_file = Path(tmpdir) / "example.com.zone"
+            view_file = Path(tmpdir) / "example.com.vroaming"
+            
+            zone_content = """
+$ORIGIN example.com.
+@ IN SOA ns1.example.com. admin.example.com. 2024010101 3600 1800 604800 86400
+"""
+            view_content = """
+$ORIGIN example.com.
+www IN A 192.0.2.1
+"""
+            
+            zone_file.write_text(zone_content)
+            view_file.write_text(view_content)
+            
+            result = self.runner.invoke(app, [
+                "parse-zone", str(zone_file), str(view_file)
+            ])
+            
+            assert result.exit_code == 0
+            assert "example.com" in result.stdout
+            assert "roaming" in result.stdout
+    
+    def test_parse_zone_invalid_zone_file(self):
+        """Test CLI error handling for invalid zone file."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmpdir_path = Path(tmpdir)
+            zone_file = tmpdir_path / "nonexistent.zone"
+            view_file = tmpdir_path / "test.vroaming"
+            
+            view_file.write_text("$ORIGIN test.com.\n@ IN A 192.0.2.1")
+            
+            result = self.runner.invoke(app, [
+                "parse-zone", str(zone_file), str(view_file)
+            ])
+            
+            assert result.exit_code == 1
+            assert "validation failed" in result.stdout
+    
+    def test_parse_single_verbose_mode(self):
+        """Test verbose mode output."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            test_file = Path(tmpdir) / "test.zone"
+            test_content = """
+$ORIGIN verbose.com.
+@ IN SOA ns1.verbose.com. admin.verbose.com. 1 3600 1800 604800 86400
+"""
+            test_file.write_text(test_content)
+            
+            result = self.runner.invoke(app, [
+                "parse-single", str(test_file),
+                "--zone-name", "verbose.com",
+                "--verbose"
+            ])
+            
+            assert result.exit_code == 0
+            assert "DEBUG" in result.stdout or "INFO" in result.stdout
+    
+    def test_help_commands(self):
+        """Test help commands display correctly."""
+        result = self.runner.invoke(app, ["--help"])
+        assert result.exit_code == 0
+        assert "DNS BIND Zone and View File Parser" in result.stdout
+        
+        result = self.runner.invoke(app, ["parse-single", "--help"])
+        assert result.exit_code == 0
+        assert "Parse a single DNS BIND file" in result.stdout
+        
+        result = self.runner.invoke(app, ["parse-zone", "--help"])
+        assert result.exit_code == 0
+        assert "Parse DNS BIND zone and view files" in result.stdout
 
 
 if __name__ == "__main__":

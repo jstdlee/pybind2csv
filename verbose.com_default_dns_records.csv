@@ -1,0 +1,2 @@
+zone,view,name,type,ttl,data
+verbose.com,default,verbose.com.,SOA,86400,ns1.verbose.com. admin.verbose.com. 1 3600 1800 604800 86400

@@ -1,0 +1,4 @@
+zone,view,name,type,ttl,data
+test.com,internal,test.com.,SOA,86400,ns1.test.com. admin.test.com. 2024010101 3600 1800 604800 86400
+test.com,internal,test.com.,NS,86400,ns1.test.com.
+test.com,internal,www.test.com.,A,86400,192.0.2.1

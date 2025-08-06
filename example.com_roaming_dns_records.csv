@@ -1,0 +1,3 @@
+zone,view,name,type,ttl,data
+example.com,roaming,example.com.,SOA,86400,ns1.example.com. admin.example.com. 2024010101 3600 1800 604800 86400
+example.com,roaming,www.example.com,A,300,192.0.2.1
